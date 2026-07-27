@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matrix Calculator | Shashank &amp; Vaibhav Tyagi</title>
+  <meta name="description" content="A premium, dark-blue matrix calculator built with pure HTML, CSS and JavaScript." />
+
+  <!-- Google Fonts: Space Grotesk (headings), Inter (body text), JetBrains Mono (matrix numbers) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       CUSTOM ALERT / TOAST CONTAINER
+       All success / error / warning / info messages are injected
+       here by JavaScript. No browser alert() is used anywhere.
+  ============================================================ -->
+  <div id="alertContainer" class="alert-container" aria-live="polite"></div>
+
+  <!-- ============================================================
+       FULL PAGE LOADING OVERLAY (shown briefly during calculation)
+  ============================================================ -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loader-bracket">[</div>
+    <div class="loader-grid">
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+    </div>
+    <div class="loader-bracket">]</div>
+    <p class="loader-text">Computing matrix...</p>
+  </div>
+
+  <!-- ============================================================
+       HEADER
+  ============================================================ -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-bracket">[</span>
+        <span class="logo-text">Matrix<span class="logo-accent">Calc</span></span>
+        <span class="logo-bracket">]</span>
+      </div>
+
+      <nav class="header-nav">
+        <a href="#operations" class="nav-link">Operations</a>
+        <a href="#calculator" class="nav-link">Calculator</a>
+        <a href="#developers" class="nav-link">Developers</a>
+
+        <!-- Dark / Light mode toggle -->
+        <button id="themeToggle" class="theme-toggle" title="Toggle dark / light mode" aria-label="Toggle theme">
+          <span class="toggle-track">
+            <span class="toggle-thumb">
+              <svg id="themeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1Z" fill="currentColor"/>
+              </svg>
+            </span>
+          </span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       HERO SECTION
+  ============================================================ -->
+  <section class="hero">
+    <div class="hero-grid-bg" aria-hidden="true"></div>
+    <div class="hero-content">
+      <p class="hero-eyebrow">B.Tech · 3rd Semester Mini Project</p>
+      <h1 class="hero-title">
+        Every entry has a place.<br>Every operation, a proof.
+      </h1>
+      <p class="hero-subtitle">
+        A complete Matrix Calculator — addition to inverses, ranks to
+        triangularity checks — computed instantly in your browser.
+        No frameworks. No servers. Just HTML, CSS and JavaScript.
+      </p>
+      <div class="hero-actions">
+        <a href="#calculator" class="btn btn-primary">Open Calculator</a>
+        <a href="#operations" class="btn btn-ghost">See all 18 operations</a>
+      </div>
+    </div>
+
+    <!-- Signature visual: a live-looking matrix bracket panel -->
+    <div class="hero-matrix" aria-hidden="true">
+      <span class="bracket bracket-left">[</span>
+      <div class="hero-matrix-grid">
+        <span>2</span><span>7</span><span>-3</span>
+        <span>0</span><span>5</span><span>1</span>
+        <span>9</span><span>-2</span><span>4</span>
+      </div>
+      <span class="bracket bracket-right">]</span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       OPERATIONS OVERVIEW GRID
+  ============================================================ -->
+  <section id="operations" class="section operations-section">
+    <div class="section-heading">
+      <p class="section-eyebrow">01 — Capabilities</p>
+      <h2>Eighteen operations. One calculator.</h2>
+      <p class="section-desc">Pick any operation below — it jumps straight to the calculator, pre-selected and ready.</p>
+    </div>
+
+    <div class="operations-grid" id="operationsGrid">
+      <!-- Cards are generated dynamically by JavaScript from the OPERATIONS list -->
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CALCULATOR SECTION
+  ============================================================ -->
+  <section id="calculator" class="section calculator-section">
+    <div class="section-heading">
+      <p class="section-eyebrow">02 — Calculator</p>
+      <h2>Build your matrix, then calculate.</h2>
+      <p class="section-desc">Choose an operation, set the size, generate the input grid, fill in the numbers.</p>
+    </div>
+
+    <div class="calculator-panel glass-card">
+
+      <!-- STEP 1: Operation dropdown (kept in sync with the cards above) -->
+      <div class="form-row">
+        <label for="operationSelect">Operation</label>
+        <select id="operationSelect" class="control"></select>
+      </div>
+
+      <!-- STEP 2: Size controls (change dynamically depending on operation) -->
+      <div class="size-controls" id="sizeControls">
+
+        <div class="size-group" id="groupA">
+          <span class="size-group-label">Matrix A</span>
+          <div class="size-inputs">
+            <div class="form-row small">
+              <label for="rowsA">Rows</label>
+              <input type="number" id="rowsA" class="control" min="1" max="8" value="2" />
+            </div>
+            <div class="form-row small">
+              <label for="colsA">Columns</label>
+              <input type="number" id="colsA" class="control" min="1" max="8" value="2" />
+            </div>
+          </div>
+        </div>
+
+        <div class="size-group" id="groupB">
+          <span class="size-group-label">Matrix B</span>
+          <div class="size-inputs">
+            <div class="form-row small">
+              <label for="rowsB">Rows</label>
+              <input type="number" id="rowsB" class="control" min="1" max="8" value="2" />
+            </div>
+            <div class="form-row small">
+              <label for="colsB">Columns</label>
+              <input type="number" id="colsB" class="control" min="1" max="8" value="2" />
+            </div>
+          </div>
+        </div>
+
+        <div class="size-group" id="groupSize">
+          <span class="size-group-label">Size (n × n)</span>
+          <div class="size-inputs">
+            <div class="form-row small">
+              <label for="sizeN">n</label>
+              <input type="number" id="sizeN" class="control" min="1" max="8" value="3" />
+            </div>
+          </div>
+        </div>
+
+        <div class="size-group" id="groupScalar">
+          <span class="size-group-label">Scalar (k)</span>
+          <div class="size-inputs">
+            <div class="form-row small">
+              <label for="scalarValue">k</label>
+              <input type="number" id="scalarValue" class="control" value="2" />
+            </div>
+          </div>
+        </div>
+
+        <button id="generateBtn" class="btn btn-primary generate-btn">Generate Matrix</button>
+      </div>
+
+      <!-- STEP 3: Dynamically generated matrix input grids -->
+      <div class="matrices-wrapper" id="matricesWrapper"></div>
+
+      <!-- STEP 4: Action buttons -->
+      <div class="action-row">
+        <button id="calculateBtn" class="btn btn-primary" disabled>Calculate</button>
+        <button id="clearBtn" class="btn btn-ghost" disabled>Clear Matrix</button>
+        <button id="resetBtn" class="btn btn-danger">Reset All</button>
+      </div>
+
+      <!-- STEP 5: Result card -->
+      <div class="result-card" id="resultCard">
+        <p class="result-placeholder">Your result will appear here.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       DEVELOPERS SECTION
+  ============================================================ -->
+  <section id="developers" class="section developers-section">
+    <div class="section-heading">
+      <p class="section-eyebrow">03 — Credits</p>
+      <h2>Meet the Developers</h2>
+      <p class="section-desc">The two people behind the logic, the layout and everything in between.</p>
+    </div>
+
+    <div class="developers-grid">
+
+      <article class="dev-card glass-card" data-fade>
+        <div class="dev-avatar">S</div>
+        <h3 class="dev-name">Shashank</h3>
+        <p class="dev-role">Frontend Developer &amp; JavaScript Logic</p>
+        <p class="dev-desc">
+          Responsible for designing the user interface, implementing matrix
+          operations, and ensuring a smooth user experience.
+        </p>
+        <div class="dev-socials">
+          <a href="#" class="social-icon" title="GitHub" aria-label="GitHub">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.72-2.78.62-3.37-1.37-3.37-1.37-.46-1.19-1.11-1.51-1.11-1.51-.91-.63.07-.62.07-.62 1 .07 1.53 1.04 1.53 1.04.89 1.55 2.34 1.1 2.91.84.09-.66.35-1.1.63-1.36-2.22-.26-4.56-1.14-4.56-5.05 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.29 9.29 0 0 1 5 0c1.9-1.32 2.74-1.05 2.74-1.05.56 1.41.21 2.45.1 2.71.65.72 1.03 1.63 1.03 2.75 0 3.92-2.34 4.78-4.57 5.04.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+          </a>
+          <a href="#" class="social-icon" title="LinkedIn" aria-label="LinkedIn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.94 5a2 2 0 1 1-4-.02 2 2 0 0 1 4 .02ZM7 8.48H3V21h4V8.48Zm6.32 0H9.5V21h3.8v-6.37c0-1.68.32-3.3 2.4-3.3 2.05 0 2.08 1.92 2.08 3.41V21H21.6v-6.98c0-3.66-.79-6.48-5.07-6.48-2.06 0-3.44 1.13-4.01 2.2h-.06V8.48Z"/></svg>
+          </a>
+          <a href="#" class="social-icon" title="Email" aria-label="Email">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3h15A2.5 2.5 0 0 1 22 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 18.5v-13Zm2.2.3 7.8 6.1 7.8-6.1H4.2Zm15.8 1.6-7.53 5.9a1.2 1.2 0 0 1-1.44 0L3.5 7.4v11.1c0 .27.22.5.5.5h15c.27 0 .5-.22.5-.5V7.4Z"/></svg>
+          </a>
+        </div>
+      </article>
+
+      <article class="dev-card glass-card" data-fade>
+        <div class="dev-avatar">VT</div>
+        <h3 class="dev-name">Vaibhav Tyagi</h3>
+        <p class="dev-role">Frontend Developer &amp; UI/UX Designer</p>
+        <p class="dev-desc">
+          Responsible for responsive design, styling, user experience,
+          testing, and overall project development.
+        </p>
+        <div class="dev-socials">
+          <a href="#" class="social-icon" title="GitHub" aria-label="GitHub">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.72-2.78.62-3.37-1.37-3.37-1.37-.46-1.19-1.11-1.51-1.11-1.51-.91-.63.07-.62.07-.62 1 .07 1.53 1.04 1.53 1.04.89 1.55 2.34 1.1 2.91.84.09-.66.35-1.1.63-1.36-2.22-.26-4.56-1.14-4.56-5.05 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.29 9.29 0 0 1 5 0c1.9-1.32 2.74-1.05 2.74-1.05.56 1.41.21 2.45.1 2.71.65.72 1.03 1.63 1.03 2.75 0 3.92-2.34 4.78-4.57 5.04.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+          </a>
+          <a href="#" class="social-icon" title="LinkedIn" aria-label="LinkedIn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.94 5a2 2 0 1 1-4-.02 2 2 0 0 1 4 .02ZM7 8.48H3V21h4V8.48Zm6.32 0H9.5V21h3.8v-6.37c0-1.68.32-3.3 2.4-3.3 2.05 0 2.08 1.92 2.08 3.41V21H21.6v-6.98c0-3.66-.79-6.48-5.07-6.48-2.06 0-3.44 1.13-4.01 2.2h-.06V8.48Z"/></svg>
+          </a>
+          <a href="#" class="social-icon" title="Email" aria-label="Email">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3h15A2.5 2.5 0 0 1 22 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 18.5v-13Zm2.2.3 7.8 6.1 7.8-6.1H4.2Zm15.8 1.6-7.53 5.9a1.2 1.2 0 0 1-1.44 0L3.5 7.4v11.1c0 .27.22.5.5.5h15c.27 0 .5-.22.5-.5V7.4Z"/></svg>
+          </a>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FOOTER
+  ============================================================ -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="logo-bracket">[</span>Matrix<span class="logo-accent">Calc</span><span class="logo-bracket">]</span>
+      </div>
+      <p class="footer-copy">&copy; 2026 Matrix Calculator. Designed &amp; Developed by Shashank and Vaibhav Tyagi. All Rights Reserved.</p>
+    </div>
+  </footer>
+
+  <script src="assets/js/script.js"></script>
+</body>
+</html>
