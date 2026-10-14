@@ -653,14 +653,27 @@ function cofactorMatrix(A) {
  * Time Complexity: O(n^2 * n!) — dominated by cofactorMatrix()
  * Space Complexity: O(n^2)
  */
-function inverseMatrix(A) {
+function inverseMatrix(A, steps = null) {
   const det = determinant(A);
+  if (steps) {
+    steps.push(`Calculate the determinant, |A| = ${roundClean(det)}.`);
+  }
   if (Math.abs(det) < EPSILON) {
+    if (steps) steps.push("Since |A| = 0, A is singular and its inverse does not exist.");
     return null; // Singular matrix — inverse does not exist
   }
   const cofactors = cofactorMatrix(A);
+  if (steps) {
+    steps.push(`Calculate the cofactor matrix C, where Cᵢⱼ = (−1)⁽ⁱ⁺ʲ⁾ × det(minorᵢⱼ): ${formatMatrixForStep(cofactors)}.`);
+  }
   const adjugate = transposeMatrix(cofactors);
-  return adjugate.map((row) => row.map((val) => roundClean(val / det)));
+  if (steps) steps.push(`Transpose the cofactor matrix to get adj(A): ${formatMatrixForStep(adjugate)}.`);
+  const inverse = adjugate.map((row) => row.map((val) => roundClean(val / det)));
+  if (steps) {
+    steps.push(`Apply A⁻¹ = adj(A) / |A| = adj(A) / ${roundClean(det)}.`);
+    steps.push(`Divide every entry of adj(A) by ${roundClean(det)} to get A⁻¹.`);
+  }
+  return inverse;
 }
 
 /**
@@ -698,11 +711,12 @@ function zeroMatrix(n) {
  * Time Complexity: O(rows^2 * cols) — typical for Gaussian elimination
  * Space Complexity: O(rows * cols) for the working copy of the matrix
  */
-function rankMatrix(A) {
+function rankMatrix(A, steps = null) {
   // Work on a deep copy so the original input is never mutated
   const mat = A.map((row) => [...row]);
   const rows = mat.length, cols = mat[0].length;
   let rank = 0;
+  if (steps) steps.push(`Start with A = ${formatMatrixForStep(mat)}.`);
 
   for (let col = 0; col < cols && rank < rows; col++) {
     // Find a pivot row with a non-zero entry in this column
@@ -713,19 +727,33 @@ function rankMatrix(A) {
         break;
       }
     }
-    if (pivotRow === -1) continue; // no pivot in this column, move on
+    if (pivotRow === -1) {
+      if (steps) steps.push(`Column ${col + 1} has no pivot; move to the next column.`);
+      continue; // no pivot in this column, move on
+    }
 
     // Swap the pivot row into place
-    [mat[rank], mat[pivotRow]] = [mat[pivotRow], mat[rank]];
+    if (pivotRow !== rank) {
+      [mat[rank], mat[pivotRow]] = [mat[pivotRow], mat[rank]];
+      if (steps) steps.push(`Swap R${rank + 1} and R${pivotRow + 1}: ${formatMatrixForStep(mat)}.`);
+    }
 
     // Eliminate this column from all rows below the pivot
     for (let r = rank + 1; r < rows; r++) {
       const factor = mat[r][col] / mat[rank][col];
+      if (steps && Math.abs(factor) > EPSILON) {
+        steps.push(`R${r + 1} ← R${r + 1} − (${roundClean(factor)})R${rank + 1}.`);
+      }
       for (let c = col; c < cols; c++) {
         mat[r][c] -= factor * mat[rank][c];
       }
     }
+    if (steps) steps.push(`After eliminating below pivot in column ${col + 1}: ${formatMatrixForStep(mat)}.`);
     rank++;
+  }
+  if (steps) {
+    const nonzeroRows = mat.filter((row) => row.some((value) => Math.abs(value) > EPSILON)).length;
+    steps.push(`There are ${nonzeroRows} non-zero row${nonzeroRows === 1 ? "" : "s"} in echelon form, so rank(A) = ${rank}.`);
   }
   return rank;
 }
@@ -896,108 +924,165 @@ function runCalculation(cat, A, B) {
 
   switch (currentOperation.id) {
     case "add":
-      renderMatrixResult(addMatrices(A, B), "A + B");
+      renderMatrixResult(addMatrices(A, B), "A + B", buildElementwiseSteps(A, B, "+"));
       showAlert("success", "Matrices added successfully.");
       break;
 
     case "sub":
-      renderMatrixResult(subtractMatrices(A, B), "A − B");
+      renderMatrixResult(subtractMatrices(A, B), "A − B", buildElementwiseSteps(A, B, "−"));
       showAlert("success", "Matrices subtracted successfully.");
       break;
 
-    case "equality":
-      renderBooleanResult(matricesEqual(A, B), "A and B are equal", "A and B are NOT equal");
+    case "equality": {
+      const equal = matricesEqual(A, B);
+      renderBooleanResult(equal, "A and B are equal", "A and B are NOT equal", buildEqualitySteps(A, B, equal));
       showAlert("success", "Comparison complete.");
       break;
+    }
 
     case "mul": {
       if (currentColsA !== currentRowsB) {
         showAlert("error", "Columns of A must equal rows of B for multiplication.");
         return;
       }
-      renderMatrixResult(multiplyMatrices(A, B), "A × B");
+      renderMatrixResult(multiplyMatrices(A, B), "A × B", buildMultiplicationSteps(A, B));
       showAlert("success", "Matrices multiplied successfully.");
       break;
     }
 
     case "scalar": {
       const k = Number(document.getElementById("scalarValue").value);
-      renderMatrixResult(scalarMultiply(A, k), `${k} · A`);
+      renderMatrixResult(scalarMultiply(A, k), `${k} · A`, buildScalarSteps(A, k));
       showAlert("success", "Scalar multiplication complete.");
       break;
     }
 
     case "transpose":
-      renderMatrixResult(transposeMatrix(A), "Aᵀ");
+      renderMatrixResult(transposeMatrix(A), "Aᵀ", [
+        `Write the rows of A as the columns of Aᵀ. A = ${formatMatrixForStep(A)}.`,
+        `Use (Aᵀ)ᵢⱼ = Aⱼᵢ to swap row and column positions: Aᵀ = ${formatMatrixForStep(transposeMatrix(A))}.`
+      ]);
       showAlert("success", "Transpose computed successfully.");
       break;
 
-    case "rank":
-      renderNumberResult(rankMatrix(A), "Rank of A");
+    case "rank": {
+      const steps = [];
+      renderNumberResult(rankMatrix(A, steps), "Rank of A", steps);
       showAlert("success", "Rank computed successfully.");
       break;
+    }
 
-    case "determinant":
-      renderNumberResult(roundClean(determinant(A)), "Determinant |A|");
+    case "determinant": {
+      const det = roundClean(determinant(A));
+      renderNumberResult(det, "Determinant |A|", buildDeterminantSteps(A, det));
       showAlert("success", "Determinant computed successfully.");
       break;
+    }
 
     case "inverse": {
-      const inv = inverseMatrix(A);
+      const steps = [];
+      const inv = inverseMatrix(A, steps);
       if (inv === null) {
         showAlert("error", "Inverse does not exist — determinant is 0 (singular matrix).");
-        renderTextResult("Inverse does not exist (matrix is singular: |A| = 0).");
+        renderTextResult("Inverse does not exist (matrix is singular: |A| = 0).", steps);
         return;
       }
-      renderMatrixResult(inv, "A⁻¹");
+      renderMatrixResult(inv, "A⁻¹", steps);
       showAlert("success", "Inverse computed successfully.");
       break;
     }
 
-    case "trace":
-      renderNumberResult(traceMatrix(A), "Trace tr(A)");
+    case "trace": {
+      const diagonal = A.map((row, i) => row[i]);
+      renderNumberResult(traceMatrix(A), "Trace tr(A)", [
+        `Select the main diagonal entries: ${diagonal.join(" + ")}.`,
+        `Add them: ${diagonal.join(" + ")} = ${traceMatrix(A)}.`
+      ]);
       showAlert("success", "Trace computed successfully.");
       break;
+    }
 
-    case "symmetric":
-      renderBooleanResult(isSymmetric(A), "Matrix IS symmetric", "Matrix is NOT symmetric");
+    case "symmetric": {
+      const symmetric = isSymmetric(A);
+      renderBooleanResult(symmetric, "Matrix IS symmetric", "Matrix is NOT symmetric", [
+        `Transpose A: Aᵀ = ${formatMatrixForStep(transposeMatrix(A))}.`,
+        `Compare A with Aᵀ entry by entry. ${symmetric ? "All corresponding entries match, so A = Aᵀ." : "At least one pair of corresponding entries differs, so A ≠ Aᵀ."}`
+      ]);
       showAlert("success", "Symmetry check complete.");
       break;
+    }
 
-    case "skewsymmetric":
-      renderBooleanResult(isSkewSymmetric(A), "Matrix IS skew-symmetric", "Matrix is NOT skew-symmetric");
+    case "skewsymmetric": {
+      const skewSymmetric = isSkewSymmetric(A);
+      const negativeTranspose = transposeMatrix(A).map((row) => row.map((value) => -value));
+      renderBooleanResult(skewSymmetric, "Matrix IS skew-symmetric", "Matrix is NOT skew-symmetric", [
+        `Calculate −Aᵀ: ${formatMatrixForStep(negativeTranspose)}.`,
+        `Compare A with −Aᵀ, including the requirement that diagonal entries are zero. ${skewSymmetric ? "They match, so A = −Aᵀ." : "The condition is not satisfied, so A is not skew-symmetric."}`
+      ]);
       showAlert("success", "Skew-symmetry check complete.");
       break;
+    }
 
-    case "isidentity":
-      renderBooleanResult(isIdentityMatrix(A), "Matrix IS the identity matrix", "Matrix is NOT the identity matrix");
+    case "isidentity": {
+      const identity = identityMatrix(A.length);
+      const isIdentity = isIdentityMatrix(A);
+      renderBooleanResult(isIdentity, "Matrix IS the identity matrix", "Matrix is NOT the identity matrix", [
+        `Build the identity matrix of the same size: I = ${formatMatrixForStep(identity)}.`,
+        `Compare A with I. ${isIdentity ? "Every diagonal entry is 1 and every off-diagonal entry is 0." : "At least one entry does not match the identity matrix."}`
+      ]);
       showAlert("success", "Identity check complete.");
       break;
+    }
 
-    case "diagonal":
-      renderBooleanResult(isDiagonal(A), "Matrix IS diagonal", "Matrix is NOT diagonal");
+    case "diagonal": {
+      const diagonal = isDiagonal(A);
+      renderBooleanResult(diagonal, "Matrix IS diagonal", "Matrix is NOT diagonal", [
+        `Check every entry outside the main diagonal of A = ${formatMatrixForStep(A)}.`,
+        `${diagonal ? "All off-diagonal entries are zero, so A is diagonal." : "At least one off-diagonal entry is non-zero, so A is not diagonal."}`
+      ]);
       showAlert("success", "Diagonal check complete.");
       break;
+    }
 
-    case "uppertriangular":
-      renderBooleanResult(isUpperTriangular(A), "Matrix IS upper triangular", "Matrix is NOT upper triangular");
+    case "uppertriangular": {
+      const upper = isUpperTriangular(A);
+      renderBooleanResult(upper, "Matrix IS upper triangular", "Matrix is NOT upper triangular", [
+        "Check all entries below the main diagonal.",
+        `${upper ? "Every entry below the main diagonal is zero, so A is upper triangular." : "At least one entry below the main diagonal is non-zero, so A is not upper triangular."}`
+      ]);
       showAlert("success", "Upper triangular check complete.");
       break;
+    }
 
-    case "lowertriangular":
-      renderBooleanResult(isLowerTriangular(A), "Matrix IS lower triangular", "Matrix is NOT lower triangular");
+    case "lowertriangular": {
+      const lower = isLowerTriangular(A);
+      renderBooleanResult(lower, "Matrix IS lower triangular", "Matrix is NOT lower triangular", [
+        "Check all entries above the main diagonal.",
+        `${lower ? "Every entry above the main diagonal is zero, so A is lower triangular." : "At least one entry above the main diagonal is non-zero, so A is not lower triangular."}`
+      ]);
       showAlert("success", "Lower triangular check complete.");
       break;
+    }
 
-    case "identity":
-      renderMatrixResult(identityMatrix(n), `I(${n})`);
+    case "identity": {
+      const identity = identityMatrix(n);
+      renderMatrixResult(identity, `I(${n})`, [
+        `Create a ${n} × ${n} matrix filled with zeros.`,
+        `Set each main-diagonal entry (i = j) to 1. The resulting identity matrix is ${formatMatrixForStep(identity)}.`
+      ]);
       showAlert("success", `${n} × ${n} identity matrix generated.`);
       break;
+    }
 
-    case "zero":
-      renderMatrixResult(zeroMatrix(n), `0(${n})`);
+    case "zero": {
+      const zero = zeroMatrix(n);
+      renderMatrixResult(zero, `0(${n})`, [
+        `Create a ${n} × ${n} matrix.`,
+        `Set every entry to 0. The resulting zero matrix is ${formatMatrixForStep(zero)}.`
+      ]);
       showAlert("success", `${n} × ${n} zero matrix generated.`);
       break;
+    }
 
     default:
       showAlert("warning", "Unknown operation selected.");
@@ -1017,7 +1102,7 @@ function runCalculation(cat, A, B) {
  * Output: none (updates #resultCard)
  * Time Complexity: O(rows * cols)   Space Complexity: O(rows * cols)
  */
-function renderMatrixResult(matrix, heading) {
+function renderMatrixResult(matrix, heading, steps = []) {
   const card = document.getElementById("resultCard");
   const cols = matrix[0].length;
 
@@ -1032,6 +1117,7 @@ function renderMatrixResult(matrix, heading) {
       ${cellsHTML}
     </div>
   `;
+  appendCalculationSteps(card, steps);
 }
 
 /**
@@ -1041,12 +1127,13 @@ function renderMatrixResult(matrix, heading) {
  * Output: none (updates #resultCard)
  * Time Complexity: O(1)   Space Complexity: O(1)
  */
-function renderNumberResult(value, heading) {
+function renderNumberResult(value, heading, steps = []) {
   const card = document.getElementById("resultCard");
   card.innerHTML = `
     <p class="result-heading">${heading}</p>
     <p class="result-value">${value}</p>
   `;
+  appendCalculationSteps(card, steps);
 }
 
 /**
@@ -1056,12 +1143,13 @@ function renderNumberResult(value, heading) {
  * Output: none (updates #resultCard)
  * Time Complexity: O(1)   Space Complexity: O(1)
  */
-function renderBooleanResult(isTrue, trueText, falseText) {
+function renderBooleanResult(isTrue, trueText, falseText, steps = []) {
   const card = document.getElementById("resultCard");
   card.innerHTML = `
     <p class="result-heading">Result</p>
     <p class="result-boolean ${isTrue ? "is-true" : "is-false"}">${isTrue ? trueText : falseText}</p>
   `;
+  appendCalculationSteps(card, steps);
 }
 
 /**
@@ -1070,9 +1158,127 @@ function renderBooleanResult(isTrue, trueText, falseText) {
  * Input: message (string)   Output: none
  * Time Complexity: O(1)   Space Complexity: O(1)
  */
-function renderTextResult(message) {
+function renderTextResult(message, steps = []) {
   const card = document.getElementById("resultCard");
   card.innerHTML = `<p class="result-placeholder">${message}</p>`;
+  appendCalculationSteps(card, steps);
+}
+
+function appendCalculationSteps(card, steps) {
+  if (steps.length === 0) return;
+
+  const answer = document.createDocumentFragment();
+  while (card.firstChild) answer.appendChild(card.firstChild);
+
+  const section = document.createElement("section");
+  section.className = "result-steps";
+  const heading = document.createElement("h3");
+  heading.className = "result-steps-heading";
+  heading.textContent = "Step-by-step solution";
+  const list = document.createElement("div");
+  list.className = "result-steps-list";
+
+  steps.forEach((step, index) => {
+    const item = document.createElement("div");
+    item.className = "result-step";
+    const label = document.createElement("strong");
+    label.className = "result-step-label";
+    label.textContent = `Step ${index + 1}`;
+    const description = document.createElement("p");
+    description.textContent = step;
+    item.append(label, description);
+    list.appendChild(item);
+  });
+
+  section.append(heading, list);
+  card.appendChild(section);
+
+  const finalHeading = document.createElement("h3");
+  finalHeading.className = "result-steps-heading result-final-heading";
+  finalHeading.textContent = "Final Answer";
+  card.append(finalHeading, answer);
+}
+
+function formatMatrixForStep(matrix) {
+  return `[${matrix.map((row) => `[${row.map(roundClean).join(", ")}]`).join(", ")}]`;
+}
+
+function buildElementwiseSteps(A, B, operator) {
+  const steps = [
+    `Apply the rule Cᵢⱼ = Aᵢⱼ ${operator} Bᵢⱼ to each matching pair of entries.`
+  ];
+
+  A.forEach((row, i) => row.forEach((value, j) => {
+    const other = B[i][j];
+    const expression = operator === "−" && other < 0
+      ? `${value} − (${other})`
+      : `${value} ${operator} ${other}`;
+    steps.push(`C${i + 1}${j + 1} = ${expression} = ${roundClean(operator === "+" ? value + other : value - other)}.`);
+  }));
+  steps.push(`Arrange the calculated entries in their original positions: ${formatMatrixForStep(operator === "+" ? addMatrices(A, B) : subtractMatrices(A, B))}.`);
+  return steps;
+}
+
+function buildMultiplicationSteps(A, B) {
+  const steps = [
+    `For each result entry, multiply a row of A by a column of B and add the products.`
+  ];
+
+  for (let i = 0; i < A.length; i++) {
+    for (let j = 0; j < B[0].length; j++) {
+      const products = A[i].map((value, k) => `${value} × ${B[k][j]}`);
+      const sum = A[i].reduce((total, value, k) => total + value * B[k][j], 0);
+      steps.push(`C${i + 1}${j + 1} = ${products.join(" + ")} = ${roundClean(sum)}.`);
+    }
+  }
+  steps.push(`Place these dot products in the result matrix: ${formatMatrixForStep(multiplyMatrices(A, B))}.`);
+  return steps;
+}
+
+function buildScalarSteps(A, scalar) {
+  const steps = [`Apply Cᵢⱼ = k × Aᵢⱼ with k = ${scalar}.`];
+  A.forEach((row, i) => row.forEach((value, j) => {
+    steps.push(`C${i + 1}${j + 1} = ${scalar} × ${value} = ${roundClean(scalar * value)}.`);
+  }));
+  steps.push(`The resulting matrix is ${formatMatrixForStep(scalarMultiply(A, scalar))}.`);
+  return steps;
+}
+
+function buildEqualitySteps(A, B, equal) {
+  const steps = [`Compare each corresponding entry of A = ${formatMatrixForStep(A)} and B = ${formatMatrixForStep(B)}.`];
+  A.forEach((row, i) => row.forEach((value, j) => {
+    steps.push(`A${i + 1}${j + 1} = ${roundClean(value)} and B${i + 1}${j + 1} = ${roundClean(B[i][j])}: ${Math.abs(value - B[i][j]) <= EPSILON ? "match" : "do not match"}.`);
+  }));
+  steps.push(equal ? "All corresponding entries match, so A = B." : "At least one corresponding entry differs, so A ≠ B.");
+  return steps;
+}
+
+function buildDeterminantSteps(A, result) {
+  const n = A.length;
+  if (n === 1) return [`For a 1 × 1 matrix, |A| is its only entry: ${A[0][0]}.`];
+  if (n === 2) {
+    return [
+      `For A = ${formatMatrixForStep(A)}, use |A| = ad − bc.`,
+      `|A| = (${A[0][0]} × ${A[1][1]}) − (${A[0][1]} × ${A[1][0]}) = ${result}.`
+    ];
+  }
+
+  const steps = ["Expand the determinant along the first row using alternating signs (+, −, +, ...)."];
+  const terms = [];
+  for (let col = 0; col < n; col++) {
+    const minor = getMinor(A, 0, col);
+    const sign = col % 2 === 0 ? 1 : -1;
+    const minorDet = determinant(minor);
+    const term = roundClean(sign * A[0][col] * minorDet);
+    terms.push(term);
+    steps.push(`Term ${col + 1}: ${sign < 0 ? "−" : "+"} ${A[0][col]} × det(${formatMatrixForStep(minor)}) = ${term}.`);
+  }
+  const sumExpression = terms.map((term, index) => {
+    if (index === 0) return String(term);
+    return term < 0 ? ` − ${Math.abs(term)}` : ` + ${term}`;
+  }).join("");
+  steps.push(`Add the expansion terms: ${sumExpression} = ${result}.`);
+  return steps;
 }
 
 
